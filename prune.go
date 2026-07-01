@@ -6,10 +6,17 @@ import (
 	"strings"
 )
 
-// pruneRepo fetches with --prune to drop stale remote-tracking refs, then
-// deletes any local branches whose upstream is now gone.
+// pruneRepo fetches with --prune to drop stale remote-tracking refs, removes
+// any worktree whose branch's PR has been merged, then deletes any local
+// branches whose upstream is now gone.
 func pruneRepo(repo string) error {
 	if _, err := runGit(repo, "fetch", "--all", "--prune"); err != nil {
+		return err
+	}
+
+	if err := pruneMergedWorktrees(repo, func(branch string) (bool, error) {
+		return prMerged(repo, branch)
+	}); err != nil {
 		return err
 	}
 
