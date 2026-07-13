@@ -26,7 +26,7 @@ func TestRunPrunesEachBareRepoAndReports(t *testing.T) {
 	git(t, origin, "branch", "-D", "doomed")
 
 	var out strings.Builder
-	if err := run(root, &out); err != nil {
+	if err := run(root, nil, &out); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
@@ -47,7 +47,7 @@ func TestRunReportsReposInDirectoryOrder(t *testing.T) {
 	}
 
 	var out strings.Builder
-	if err := run(root, &out); err != nil {
+	if err := run(root, nil, &out); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
@@ -63,6 +63,48 @@ func TestRunReportsReposInDirectoryOrder(t *testing.T) {
 		if contains(gitOut(t, bare, "branch", "--format=%(refname:short)"), "doomed") {
 			t.Errorf("expected doomed branch pruned in %s", bare)
 		}
+	}
+}
+
+func TestRunHelpFlagPrintsUsageAndPrunesNothing(t *testing.T) {
+	root := t.TempDir()
+	bare := makeBareRepoWithDoomedBranch(t, root, "alpha.git")
+
+	for _, flag := range []string{"--help", "-h"} {
+		var out strings.Builder
+		if err := run(root, []string{flag}, &out); err != nil {
+			t.Fatalf("run %s: %v", flag, err)
+		}
+		if !strings.Contains(out.String(), "Usage") {
+			t.Errorf("run %s: expected usage output, got: %q", flag, out.String())
+		}
+		if !contains(gitOut(t, bare, "branch", "--format=%(refname:short)"), "doomed") {
+			t.Errorf("run %s: expected no pruning", flag)
+		}
+	}
+}
+
+func TestRunOnlyPrunesNamedRepos(t *testing.T) {
+	root := t.TempDir()
+	names := []string{"alpha.git", "beta.git", "gamma.git"}
+	bares := make(map[string]string)
+	for _, name := range names {
+		bares[name] = makeBareRepoWithDoomedBranch(t, root, name)
+	}
+
+	var out strings.Builder
+	if err := run(root, []string{"beta"}, &out); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	if strings.Contains(out.String(), "alpha.git") || strings.Contains(out.String(), "gamma.git") {
+		t.Errorf("expected only beta.git pruned, got: %q", out.String())
+	}
+	if contains(gitOut(t, bares["beta.git"], "branch", "--format=%(refname:short)"), "doomed") {
+		t.Errorf("expected doomed branch pruned in beta.git")
+	}
+	if !contains(gitOut(t, bares["alpha.git"], "branch", "--format=%(refname:short)"), "doomed") {
+		t.Errorf("expected doomed branch untouched in alpha.git")
 	}
 }
 

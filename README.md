@@ -16,7 +16,9 @@ authenticated.
 
 ```bash
 cd /path/to/dir/of/bare/repos
-trim-the-sails
+trim-the-sails            # prune every bare repo in the directory
+trim-the-sails alpha beta # prune only the named repos (.git suffix optional)
+trim-the-sails --help     # show usage
 ```
 
 ## Build
