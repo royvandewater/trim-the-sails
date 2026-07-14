@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -18,7 +17,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "trim-the-sails:", err)
 		os.Exit(1)
 	}
-	if err := run(dir, os.Args[1:], os.Stdout); err != nil {
+	if err := run(dir, os.Args[1:], os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, "trim-the-sails:", err)
 		os.Exit(1)
 	}
@@ -26,9 +25,9 @@ func main() {
 
 // run finds the bare repos in dir and prunes their branches concurrently,
 // capped at maxParallelism. When names is non-empty, only repos matching those
-// names are pruned; otherwise every bare repo is. Each repo's output is
-// buffered and flushed to w in directory order so the report stays
-// deterministic regardless of scheduling.
+// names are pruned; otherwise every bare repo is. Progress is reported to w as
+// a live bar with an ETA when w is a terminal, and stays silent otherwise so
+// piped output remains clean.
 func run(dir string, names []string, w io.Writer) error {
 	for _, name := range names {
 		if name == "--help" || name == "-h" {
@@ -43,8 +42,8 @@ func run(dir string, names []string, w io.Writer) error {
 	}
 	repos = filterRepos(repos, names)
 
-	outputs := make([]bytes.Buffer, len(repos))
 	errs := make([]error, len(repos))
+	bar := newProgressBar(w, len(repos))
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxParallelism)
@@ -55,15 +54,13 @@ func run(dir string, names []string, w io.Writer) error {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			fmt.Fprintln(&outputs[i], "pruning", repo)
 			errs[i] = pruneRepo(repo)
+			bar.advance()
 		}()
 	}
 	wg.Wait()
+	bar.finish()
 
-	for i := range repos {
-		outputs[i].WriteTo(w)
-	}
 	for _, err := range errs {
 		if err != nil {
 			return err
