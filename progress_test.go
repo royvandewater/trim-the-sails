@@ -53,6 +53,27 @@ func TestRenderProgress(t *testing.T) {
 	}
 }
 
+func TestProgressFrameErasesLeftoverChars(t *testing.T) {
+	// A shorter line must be padded so leftovers from a previous longer line
+	// (e.g. "eta 1m15s" -> "eta 7s") do not linger on screen.
+	frame, n := progressFrame("7s", len("1m15s"))
+	if frame != "\r7s   " {
+		t.Errorf("frame = %q, want %q", frame, "\r7s   ")
+	}
+	if n != 2 {
+		t.Errorf("length = %d, want 2", n)
+	}
+
+	// A longer-or-equal line needs no padding.
+	frame, n = progressFrame("1m15s", 2)
+	if frame != "\r1m15s" {
+		t.Errorf("frame = %q, want %q", frame, "\r1m15s")
+	}
+	if n != 5 {
+		t.Errorf("length = %d, want 5", n)
+	}
+}
+
 func TestProgressBarSilentWhenNotTerminal(t *testing.T) {
 	var out strings.Builder
 	bar := newProgressBar(&out, 3)

@@ -44,8 +44,20 @@ type progressBar struct {
 	start time.Time
 	live  bool
 
-	mu   sync.Mutex
-	done int
+	mu      sync.Mutex
+	done    int
+	lastLen int
+}
+
+// progressFrame builds an in-place terminal update: a carriage return, line,
+// and enough trailing spaces to erase leftovers from a previously longer line
+// (prevLen). It returns the frame to write and line's length.
+func progressFrame(line string, prevLen int) (string, int) {
+	pad := prevLen - len(line)
+	if pad < 0 {
+		pad = 0
+	}
+	return "\r" + line + strings.Repeat(" ", pad), len(line)
 }
 
 func newProgressBar(w io.Writer, total int) *progressBar {
@@ -72,7 +84,9 @@ func (b *progressBar) render() {
 	if !b.live {
 		return
 	}
-	fmt.Fprint(b.w, "\r"+renderProgress(b.done, b.total, time.Since(b.start)))
+	frame, n := progressFrame(renderProgress(b.done, b.total, time.Since(b.start)), b.lastLen)
+	b.lastLen = n
+	fmt.Fprint(b.w, frame)
 }
 
 // finish moves off the progress line so later output starts fresh.
